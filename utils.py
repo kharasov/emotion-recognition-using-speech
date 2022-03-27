@@ -1,3 +1,4 @@
+from fileinput import filename
 import soundfile
 import librosa
 import numpy as np
@@ -61,43 +62,47 @@ def extract_feature(file_name, **kwargs):
     mel = kwargs.get("mel")
     contrast = kwargs.get("contrast")
     tonnetz = kwargs.get("tonnetz")
-    try:
-        with soundfile.SoundFile(file_name) as sound_file:
-            pass
-    except RuntimeError:
-        # not properly formated, convert to 16000 sample rate & mono channel using ffmpeg
-        # get the basename
-        basename = os.path.basename(file_name)
-        dirname  = os.path.dirname(file_name)
-        name, ext = os.path.splitext(basename)
-        new_basename = f"{name}_c.wav"
-        new_filename = os.path.join(dirname, new_basename)
-        v = convert_audio(file_name, new_filename)
-        if v:
-            raise NotImplementedError("Converting the audio files failed, make sure `ffmpeg` is installed in your machine and added to PATH.")
+    if type(file_name) == 'tuple':
+        try:
+            with soundfile.SoundFile(file_name) as sound_file:
+                pass
+        except RuntimeError:
+            # not properly formated, convert to 16000 sample rate & mono channel using ffmpeg
+            # get the basename
+            basename = os.path.basename(file_name)
+            dirname  = os.path.dirname(file_name)
+            name, ext = os.path.splitext(basename)
+            new_basename = f"{name}_c.wav"
+            new_filename = os.path.join(dirname, new_basename)
+            v = convert_audio(file_name, new_filename)
+            if v:
+                raise NotImplementedError("Converting the audio files failed, make sure `ffmpeg` is installed in your machine and added to PATH.")
+        else:
+            new_filename = file_name
+        with soundfile.SoundFile(new_filename) as sound_file:
+            X = sound_file.read(dtype="float32")
+            sample_rate = sound_file.samplerate
     else:
-        new_filename = file_name
-    with soundfile.SoundFile(new_filename) as sound_file:
-        X = sound_file.read(dtype="float32")
-        sample_rate = sound_file.samplerate
-        if chroma or contrast:
-            stft = np.abs(librosa.stft(X))
-        result = np.array([])
-        if mfcc:
-            mfccs = np.mean(librosa.feature.mfcc(y=X, sr=sample_rate, n_mfcc=40).T, axis=0)
-            result = np.hstack((result, mfccs))
-        if chroma:
-            chroma = np.mean(librosa.feature.chroma_stft(S=stft, sr=sample_rate).T,axis=0)
-            result = np.hstack((result, chroma))
-        if mel:
-            mel = np.mean(librosa.feature.melspectrogram(X, sr=sample_rate).T,axis=0)
-            result = np.hstack((result, mel))
-        if contrast:
-            contrast = np.mean(librosa.feature.spectral_contrast(S=stft, sr=sample_rate).T,axis=0)
-            result = np.hstack((result, contrast))
-        if tonnetz:
-            tonnetz = np.mean(librosa.feature.tonnetz(y=librosa.effects.harmonic(X), sr=sample_rate).T,axis=0)
-            result = np.hstack((result, tonnetz))
+        X, sample_rate = file_name
+
+    if chroma or contrast:
+        stft = np.abs(librosa.stft(X))
+    result = np.array([])
+    if mfcc:
+        mfccs = np.mean(librosa.feature.mfcc(y=X, sr=sample_rate, n_mfcc=40).T, axis=0)
+        result = np.hstack((result, mfccs))
+    if chroma:
+        chroma = np.mean(librosa.feature.chroma_stft(S=stft, sr=sample_rate).T,axis=0)
+        result = np.hstack((result, chroma))
+    if mel:
+        mel = np.mean(librosa.feature.melspectrogram(X, sr=sample_rate).T,axis=0)
+        result = np.hstack((result, mel))
+    if contrast:
+        contrast = np.mean(librosa.feature.spectral_contrast(S=stft, sr=sample_rate).T,axis=0)
+        result = np.hstack((result, contrast))
+    if tonnetz:
+        tonnetz = np.mean(librosa.feature.tonnetz(y=librosa.effects.harmonic(X), sr=sample_rate).T,axis=0)
+        result = np.hstack((result, tonnetz))
     return result
 
 
